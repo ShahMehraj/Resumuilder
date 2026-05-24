@@ -40,37 +40,29 @@ if "custom_sections" not in st.session_state:
     st.session_state.custom_sections = []
 if "section_order" not in st.session_state:
     st.session_state.section_order = DEFAULT_SECTIONS.copy()
+if "reorder_counter" not in st.session_state:
+    st.session_state.reorder_counter = 0
 
 
 def get_all_sections():
-    """Return current section order including custom sections."""
     all_known = DEFAULT_SECTIONS + st.session_state.custom_sections
-    # Add any new sections not yet in order
     for s in all_known:
         if s not in st.session_state.section_order:
             st.session_state.section_order.append(s)
-    # Remove deleted sections
     st.session_state.section_order = [s for s in st.session_state.section_order if s in all_known]
     return st.session_state.section_order
 
 
-# ========== SIDEBAR: LAYOUT CONTROLS ==========
+# ========== SIDEBAR ==========
 with st.sidebar:
     st.header("Layout Settings")
-    section_spacing = st.slider("Section spacing (pt)", min_value=4, max_value=20, value=12, step=1,
-                                help="Space above each section heading")
-    after_rule_spacing = st.slider("After-rule spacing (pt)", min_value=4, max_value=16, value=10, step=1,
-                                   help="Space between gold rule and content below")
-    bullet_spacing = st.slider("Bullet item spacing (pt)", min_value=-4, max_value=4, value=-2, step=1,
-                               help="Vertical space between bullet points")
+    section_spacing = st.slider("Section spacing (pt)", min_value=4, max_value=20, value=12, step=1)
+    after_rule_spacing = st.slider("After-rule spacing (pt)", min_value=4, max_value=16, value=10, step=1)
+    bullet_spacing = st.slider("Bullet item spacing (pt)", min_value=-4, max_value=4, value=-2, step=1)
 
     st.divider()
     st.header("Section Order")
-    st.caption("Use arrows to reorder sections in the PDF")
-
-    # Use a counter to force unique keys on each reorder
-    if "reorder_counter" not in st.session_state:
-        st.session_state.reorder_counter = 0
+    st.caption("Reorder here — editor and PDF both follow this order")
 
     sections = get_all_sections()
 
@@ -93,7 +85,7 @@ with st.sidebar:
 
     st.divider()
     st.header("Custom Sections")
-    new_section_name = st.text_input("New section name", placeholder="e.g., Publications, Volunteering")
+    new_section_name = st.text_input("New section name", placeholder="e.g., Publications")
     if st.button("Add Custom Section"):
         if new_section_name.strip() and new_section_name.strip() not in st.session_state.custom_sections:
             st.session_state.custom_sections.append(new_section_name.strip())
@@ -110,7 +102,7 @@ with st.sidebar:
             st.rerun()
 
 
-# ========== PERSONAL INFO ==========
+# ========== PERSONAL INFO (always first) ==========
 st.header("Personal Information")
 col1, col2 = st.columns(2)
 with col1:
@@ -128,139 +120,169 @@ with col4:
 
 st.divider()
 
-# ========== EDUCATION ==========
-st.header("Education")
-col_add, col_remove, _ = st.columns([1, 1, 4])
-with col_add:
-    if st.button("+ Add Education"):
-        st.session_state.edu_count += 1
-        st.rerun()
-with col_remove:
-    if st.button("- Remove Education") and st.session_state.edu_count > 1:
-        st.session_state.edu_count -= 1
-        st.rerun()
 
+# ========== SECTION RENDERERS ==========
 edu_entries = []
-for i in range(st.session_state.edu_count):
-    with st.expander(f"Education {i+1}", expanded=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            inst = st.text_input("Institution", key=f"edu_inst_{i}")
-            degree = st.text_input("Degree / Program", key=f"edu_degree_{i}")
-        with c2:
-            dates = st.text_input("Dates", key=f"edu_dates_{i}", placeholder="09/2020 -- 05/2024")
-            gpa = st.text_input("GPA (optional)", key=f"edu_gpa_{i}", placeholder="8.92 / 10")
-        edu_entries.append({"inst": inst, "degree": degree, "dates": dates, "gpa": gpa})
-
-st.divider()
-
-# ========== EXPERIENCE ==========
-st.header("Experience")
-col_add, col_remove, _ = st.columns([1, 1, 4])
-with col_add:
-    if st.button("+ Add Experience"):
-        st.session_state.exp_count += 1
-        st.rerun()
-with col_remove:
-    if st.button("- Remove Experience") and st.session_state.exp_count > 1:
-        st.session_state.exp_count -= 1
-        st.rerun()
-
 exp_entries = []
-for i in range(st.session_state.exp_count):
-    with st.expander(f"Experience {i+1}", expanded=(i == 0)):
-        c1, c2 = st.columns(2)
-        with c1:
-            company = st.text_input("Company", key=f"exp_company_{i}")
-            role = st.text_input("Role / Title", key=f"exp_role_{i}")
-        with c2:
-            loc = st.text_input("Location", key=f"exp_loc_{i}")
-            dates = st.text_input("Dates", key=f"exp_dates_{i}")
-        bullets = st.text_area(
-            "Bullet points (one per line, use 'Title: Description' format for colored titles)",
-            key=f"exp_bullets_{i}",
-            height=150,
-            placeholder="Infographic Model Onboarding: End-to-end integration across...\nDefect Detection: Converted warnings into blocking errors..."
-        )
-        exp_entries.append({"company": company, "role": role, "loc": loc, "dates": dates, "bullets": bullets})
-
-st.divider()
-
-# ========== PROJECTS ==========
-st.header("Projects")
-col_add, col_remove, _ = st.columns([1, 1, 4])
-with col_add:
-    if st.button("+ Add Project"):
-        st.session_state.proj_count += 1
-        st.rerun()
-with col_remove:
-    if st.button("- Remove Project") and st.session_state.proj_count > 1:
-        st.session_state.proj_count -= 1
-        st.rerun()
-
 proj_entries = []
-for i in range(st.session_state.proj_count):
-    with st.expander(f"Project {i+1}", expanded=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            title = st.text_input("Project Title", key=f"proj_title_{i}")
-            desc = st.text_input("One-line description (italic)", key=f"proj_desc_{i}")
-        with c2:
-            source = st.text_input("Source (e.g., Kaggle, IIT Kharagpur)", key=f"proj_source_{i}")
-            dates = st.text_input("Dates", key=f"proj_dates_{i}")
-        bullets = st.text_area("Bullet points (one per line)", key=f"proj_bullets_{i}", height=100)
-        proj_entries.append({"title": title, "desc": desc, "source": source, "dates": dates, "bullets": bullets})
-
-st.divider()
-
-# ========== SKILLS ==========
-st.header("Skills")
-skills = st.text_area(
-    "Skills (comma separated)",
-    "C, C++, Python, Rust, Java, Scala, JavaScript, TypeScript, HTML5, CSS3, React, jQuery, TailWind CSS, Spark, REST API, UI/UX Design, Database Management, TensorFlow, LangChain, Shell Scripting, Bash, NLP, SQL, AWS, CDK, Smithy, Coral, Cypress, Git, Algorithms and Data Structures, Deep Learning, Machine Learning, Django",
-    height=100
-)
-
-st.divider()
-
-# ========== AWARDS ==========
-st.header("Awards and Achievements")
-awards = st.text_area(
-    "Awards (one per line)",
-    "Expert at CODEFORCES (rating: 1662)\nAIR 1400 in IIT JEE ADVANCE 2020\nIndian Math Olympiad (IOQM) Qualifier",
-    height=80
-)
-
-st.divider()
-
-# ========== CERTIFICATIONS ==========
-st.header("Certifications")
-certs = st.text_area(
-    "Certifications (one per line, use 'Course --- Provider, Year' format)",
-    "Complete Machine Learning & Data Science Bootcamp --- Zero to Mastery Academy, 2023\nLLM Mastery: ChatGPT, Gemini, Claude, Llama3, OpenAI & APIs --- Udemy, 2024\nThe complete course on Data Structures and Algorithms --- AlgoZenith Technologies\nThe Complete Full-Stack Web Development Bootcamp --- Udemy, 2023",
-    height=100
-)
-
-st.divider()
-
-# ========== CUSTOM SECTIONS ==========
+skills = ""
+awards = ""
+certs = ""
 custom_section_data = {}
-for sec_name in st.session_state.custom_sections:
+
+
+def render_education():
+    global edu_entries
+    st.header("Education")
+    col_add, col_remove, _ = st.columns([1, 1, 4])
+    with col_add:
+        if st.button("+ Add", key="add_edu"):
+            st.session_state.edu_count += 1
+            st.rerun()
+    with col_remove:
+        if st.button("- Remove", key="rm_edu") and st.session_state.edu_count > 1:
+            st.session_state.edu_count -= 1
+            st.rerun()
+
+    edu_entries.clear()
+    for i in range(st.session_state.edu_count):
+        with st.expander(f"Education {i+1}", expanded=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                inst = st.text_input("Institution", key=f"edu_inst_{i}")
+                degree = st.text_input("Degree / Program", key=f"edu_degree_{i}")
+            with c2:
+                dates = st.text_input("Dates", key=f"edu_dates_{i}", placeholder="09/2020 -- 05/2024")
+                gpa = st.text_input("GPA (optional)", key=f"edu_gpa_{i}", placeholder="8.92 / 10")
+            edu_entries.append({"inst": inst, "degree": degree, "dates": dates, "gpa": gpa})
+    st.divider()
+
+
+def render_experience():
+    global exp_entries
+    st.header("Experience")
+    col_add, col_remove, _ = st.columns([1, 1, 4])
+    with col_add:
+        if st.button("+ Add", key="add_exp"):
+            st.session_state.exp_count += 1
+            st.rerun()
+    with col_remove:
+        if st.button("- Remove", key="rm_exp") and st.session_state.exp_count > 1:
+            st.session_state.exp_count -= 1
+            st.rerun()
+
+    exp_entries.clear()
+    for i in range(st.session_state.exp_count):
+        with st.expander(f"Experience {i+1}", expanded=(i == 0)):
+            c1, c2 = st.columns(2)
+            with c1:
+                company = st.text_input("Company", key=f"exp_company_{i}")
+                role = st.text_input("Role / Title", key=f"exp_role_{i}")
+            with c2:
+                loc = st.text_input("Location", key=f"exp_loc_{i}")
+                dates = st.text_input("Dates", key=f"exp_dates_{i}")
+            bullets = st.text_area(
+                "Bullet points (one per line, 'Title: Description' for colored titles)",
+                key=f"exp_bullets_{i}", height=150,
+                placeholder="Project Name: Description of work done..."
+            )
+            exp_entries.append({"company": company, "role": role, "loc": loc, "dates": dates, "bullets": bullets})
+    st.divider()
+
+
+def render_projects():
+    global proj_entries
+    st.header("Projects")
+    col_add, col_remove, _ = st.columns([1, 1, 4])
+    with col_add:
+        if st.button("+ Add", key="add_proj"):
+            st.session_state.proj_count += 1
+            st.rerun()
+    with col_remove:
+        if st.button("- Remove", key="rm_proj") and st.session_state.proj_count > 1:
+            st.session_state.proj_count -= 1
+            st.rerun()
+
+    proj_entries.clear()
+    for i in range(st.session_state.proj_count):
+        with st.expander(f"Project {i+1}", expanded=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                title = st.text_input("Project Title", key=f"proj_title_{i}")
+                desc = st.text_input("One-line description (italic)", key=f"proj_desc_{i}")
+            with c2:
+                source = st.text_input("Source (e.g., Kaggle)", key=f"proj_source_{i}")
+                dates = st.text_input("Dates", key=f"proj_dates_{i}")
+            bullets = st.text_area("Bullet points (one per line)", key=f"proj_bullets_{i}", height=100)
+            proj_entries.append({"title": title, "desc": desc, "source": source, "dates": dates, "bullets": bullets})
+    st.divider()
+
+
+def render_skills():
+    global skills
+    st.header("Skills")
+    skills = st.text_area(
+        "Skills (comma separated)",
+        "C, C++, Python, Rust, Java, Scala, JavaScript, TypeScript, HTML5, CSS3, React, jQuery, TailWind CSS, Spark, REST API, UI/UX Design, Database Management, TensorFlow, LangChain, Shell Scripting, Bash, NLP, SQL, AWS, CDK, Smithy, Coral, Cypress, Git, Algorithms and Data Structures, Deep Learning, Machine Learning, Django",
+        height=100, key="skills_input"
+    )
+    st.divider()
+
+
+def render_awards():
+    global awards
+    st.header("Awards and Achievements")
+    awards = st.text_area(
+        "Awards (one per line)",
+        "Expert at CODEFORCES (rating: 1662)\nAIR 1400 in IIT JEE ADVANCE 2020\nIndian Math Olympiad (IOQM) Qualifier",
+        height=80, key="awards_input"
+    )
+    st.divider()
+
+
+def render_certification():
+    global certs
+    st.header("Certifications")
+    certs = st.text_area(
+        "Certifications (one per line, 'Course --- Provider, Year' format)",
+        "Complete Machine Learning & Data Science Bootcamp --- Zero to Mastery Academy, 2023\nLLM Mastery: ChatGPT, Gemini, Claude, Llama3, OpenAI & APIs --- Udemy, 2024\nThe complete course on Data Structures and Algorithms --- AlgoZenith Technologies\nThe Complete Full-Stack Web Development Bootcamp --- Udemy, 2023",
+        height=100, key="certs_input"
+    )
+    st.divider()
+
+
+def render_custom_section(sec_name):
     st.header(sec_name)
     content = st.text_area(
-        f"Content for {sec_name} (one item per line, use 'Title: Description' for colored titles)",
-        key=f"custom_{sec_name}",
-        height=120,
+        f"Content (one item per line, 'Title: Description' for colored titles)",
+        key=f"custom_{sec_name}", height=120,
         placeholder="Item 1: Description...\nItem 2: Description..."
     )
     custom_section_data[sec_name] = content
     st.divider()
 
 
+# ========== RENDER SECTIONS IN ORDER ==========
+section_renderers = {
+    "Education": render_education,
+    "Experience": render_experience,
+    "Projects": render_projects,
+    "Skills": render_skills,
+    "Awards and Achievements": render_awards,
+    "Certification": render_certification,
+}
+
+for sec in get_all_sections():
+    if sec in section_renderers:
+        section_renderers[sec]()
+    elif sec in st.session_state.custom_sections:
+        render_custom_section(sec)
+
+
 # ========== LATEX GENERATION ==========
-def build_education_latex(edu_entries):
+def build_education_latex(entries):
     edu_block = ""
-    for e in edu_entries:
+    for e in entries:
         if not e['inst']:
             continue
         gpa_str = f" \\enspace$|$\\enspace GPA: {tex_escape(e['gpa'])}" if e['gpa'] else ""
@@ -276,9 +298,9 @@ def build_education_latex(edu_entries):
 """
 
 
-def build_experience_latex(exp_entries):
+def build_experience_latex(entries):
     exp_block = ""
-    for e in exp_entries:
+    for e in entries:
         if not e['company']:
             continue
         bullets_tex = ""
@@ -294,7 +316,6 @@ def build_experience_latex(exp_entries):
                     bullets_tex += f"        \\resumeItem{{{{\\color{{darkgray}}{title_part}:}} {desc_part}}}\n"
                 else:
                     bullets_tex += f"        \\resumeItem{{{tex_escape(line)}}}\n"
-
         exp_block += f"""
     \\resumeSubheading
       {{{tex_escape(e['company'])}}}{{{tex_escape(e['loc'])}}}
@@ -309,9 +330,9 @@ def build_experience_latex(exp_entries):
 """
 
 
-def build_projects_latex(proj_entries):
+def build_projects_latex(entries):
     proj_block = ""
-    for p in proj_entries:
+    for p in entries:
         if not p['title']:
             continue
         bullets_tex = ""
@@ -320,7 +341,6 @@ def build_projects_latex(proj_entries):
                 line = line.strip()
                 if line:
                     bullets_tex += f"            \\resumeItem{{{tex_escape(line)}}}\n"
-
         proj_block += f"""      \\resumeProjectHeading
           {{{tex_escape(p['title'])}}}{{{{\\color{{collegegrey}}{tex_escape(p['source'])}}}}}
       \\resumeProjectHeading
@@ -334,8 +354,8 @@ def build_projects_latex(proj_entries):
 """
 
 
-def build_skills_latex(skills):
-    skill_items = [s.strip() for s in skills.split(',') if s.strip()]
+def build_skills_latex(skills_text):
+    skill_items = [s.strip() for s in skills_text.split(',') if s.strip()]
     skills_tex = " $\\cdot$ ".join([tex_escape(s) for s in skill_items])
     return f"""\\section{{Skills}}
  \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
@@ -346,8 +366,8 @@ def build_skills_latex(skills):
 """
 
 
-def build_awards_latex(awards):
-    award_lines = [a.strip() for a in awards.strip().split('\n') if a.strip()]
+def build_awards_latex(awards_text):
+    award_lines = [a.strip() for a in awards_text.strip().split('\n') if a.strip()]
     awards_tex = " \\hfill ".join([f"$\\diamondsuit$ {tex_escape(a)}" for a in award_lines])
     return f"""\\section{{Awards and Achievements}}
  \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
@@ -358,8 +378,8 @@ def build_awards_latex(awards):
 """
 
 
-def build_certification_latex(certs):
-    cert_lines = [c.strip() for c in certs.strip().split('\n') if c.strip()]
+def build_certification_latex(certs_text):
+    cert_lines = [c.strip() for c in certs_text.strip().split('\n') if c.strip()]
     certs_tex = ""
     for c in cert_lines:
         if '---' in c:
@@ -387,23 +407,16 @@ def build_custom_section_latex(sec_name, content):
             continue
         if ':' in line:
             parts = line.split(':', 1)
-            title_part = tex_escape(parts[0].strip())
-            desc_part = tex_escape(parts[1].strip())
-            items_tex += f"        \\resumeItem{{{{\\color{{darkgray}}{title_part}:}} {desc_part}}}\n"
+            items_tex += f"        \\resumeItem{{{{\\color{{darkgray}}{tex_escape(parts[0].strip())}:}} {tex_escape(parts[1].strip())}}}\n"
         else:
             items_tex += f"        \\resumeItem{{{tex_escape(line)}}}\n"
-
     return f"""\\section{{{tex_escape(sec_name)}}}
   \\resumeItemListStart
 {items_tex}  \\resumeItemListEnd
 """
 
 
-def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, location,
-                   edu_entries, exp_entries, proj_entries, skills, awards, certs,
-                   custom_section_data, section_order, section_spacing, after_rule_spacing, bullet_spacing):
-
-    # Build each section's LaTeX
+def generate_latex_full():
     section_builders = {
         "Education": lambda: build_education_latex(edu_entries),
         "Experience": lambda: build_experience_latex(exp_entries),
@@ -415,13 +428,12 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
     for sec_name in st.session_state.custom_sections:
         section_builders[sec_name] = lambda sn=sec_name: build_custom_section_latex(sn, custom_section_data.get(sn, ""))
 
-    # Generate sections in order
-    body_sections = ""
-    for sec in section_order:
+    body = ""
+    for sec in get_all_sections():
         if sec in section_builders:
-            body_sections += section_builders[sec]() + "\n"
+            body += section_builders[sec]() + "\n"
 
-    latex = f"""%-------------------------
+    return f"""%-------------------------
 % Resume generated by Resume Builder
 %-------------------------
 
@@ -447,7 +459,6 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
 \\renewcommand{{\\headrulewidth}}{{0pt}}
 \\renewcommand{{\\footrulewidth}}{{0pt}}
 
-% Adjust margins
 \\usepackage[left=0.6in, right=0.6in, top=0.5in, bottom=0.5in]{{geometry}}
 
 \\urlstyle{{same}}
@@ -455,18 +466,15 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
 \\raggedright
 \\setlength{{\\tabcolsep}}{{0in}}
 
-% Colors
 \\definecolor{{sectionrule}}{{RGB}}{{180, 140, 50}}
 \\definecolor{{collegegrey}}{{RGB}}{{111, 123, 134}}
 \\definecolor{{darkgray}}{{RGB}}{{70, 70, 70}}
 
-% Section formatting
 \\titleformat{{\\section}}{{
   \\centering\\large\\bfseries
 }}{{}}{{0em}}{{}}[\\vspace{{-0.1pt}}\\color{{sectionrule}}\\hrule height 0.8pt]
 \\titlespacing*{{\\section}}{{0pt}}{{{section_spacing}pt}}{{{after_rule_spacing}pt}}
 
-% Custom commands
 \\newcommand{{\\resumeItem}}[1]{{
   \\item\\small{{
     {{#1 \\vspace{{{bullet_spacing}pt}}}}
@@ -493,10 +501,8 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
 \\newcommand{{\\resumeItemListStart}}{{\\begin{{itemize}}[leftmargin=0.15in, label={{\\color{{collegegrey}}\\textbullet}}]}}
 \\newcommand{{\\resumeItemListEnd}}{{\\end{{itemize}}\\vspace{{-5pt}}}}
 
-%-------------------------------------------
 \\begin{{document}}
 
-%----------HEADING----------
 \\begin{{center}}
     {{\\LARGE\\bfseries {tex_escape(name)}}} \\\\ \\vspace{{2pt}}
     {{\\small {tex_escape(subtitle)}}} \\\\ \\vspace{{2pt}}
@@ -510,21 +516,17 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
     }}
 \\end{{center}}
 
-{body_sections}
-%-------------------------------------------
+{body}
 \\end{{document}}
 """
-    return latex
 
 
 def compile_latex(latex_code):
     tmpdir = tempfile.mkdtemp()
     tex_path = os.path.join(tmpdir, "resume.tex")
     pdf_path = os.path.join(tmpdir, "resume.pdf")
-
     with open(tex_path, 'w') as f:
         f.write(latex_code)
-
     try:
         result = subprocess.run(
             ['pdflatex', '-interaction=nonstopmode', '-output-directory', tmpdir, tex_path],
@@ -541,14 +543,9 @@ def compile_latex(latex_code):
         return None, str(e)
 
 
-# ========== GENERATE BUTTON ==========
-st.divider()
+# ========== GENERATE ==========
 if st.button("Generate Resume", type="primary", use_container_width=True):
-    latex_code = generate_latex(
-        name, subtitle, phone, email, linkedin_url, linkedin_label, location,
-        edu_entries, exp_entries, proj_entries, skills, awards, certs,
-        custom_section_data, get_all_sections(), section_spacing, after_rule_spacing, bullet_spacing
-    )
+    latex_code = generate_latex_full()
 
     tab1, tab2 = st.tabs(["PDF Preview", "LaTeX Code"])
 
@@ -559,13 +556,11 @@ if st.button("Generate Resume", type="primary", use_container_width=True):
     with tab1:
         with st.spinner("Compiling LaTeX to PDF..."):
             pdf_bytes, error = compile_latex(latex_code)
-
         if pdf_bytes:
             st.success("PDF generated successfully!")
             st.download_button("Download PDF", pdf_bytes, file_name="resume.pdf", mime="application/pdf")
             b64 = base64.b64encode(pdf_bytes).decode()
-            pdf_display = f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="800" type="application/pdf"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
+            st.markdown(f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="800" type="application/pdf"></iframe>', unsafe_allow_html=True)
         else:
             st.error("PDF compilation failed")
             st.code(error, language="text")
