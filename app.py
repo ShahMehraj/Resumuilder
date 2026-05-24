@@ -28,6 +28,8 @@ def tex_escape(text):
 
 
 # --- Session state initialization ---
+DEFAULT_SECTIONS = ["Education", "Experience", "Projects", "Skills", "Awards and Achievements", "Certification"]
+
 if "edu_count" not in st.session_state:
     st.session_state.edu_count = 2
 if "exp_count" not in st.session_state:
@@ -36,6 +38,20 @@ if "proj_count" not in st.session_state:
     st.session_state.proj_count = 1
 if "custom_sections" not in st.session_state:
     st.session_state.custom_sections = []
+if "section_order" not in st.session_state:
+    st.session_state.section_order = DEFAULT_SECTIONS.copy()
+
+
+def get_all_sections():
+    """Return current section order including custom sections."""
+    all_known = DEFAULT_SECTIONS + st.session_state.custom_sections
+    # Add any new sections not yet in order
+    for s in all_known:
+        if s not in st.session_state.section_order:
+            st.session_state.section_order.append(s)
+    # Remove deleted sections
+    st.session_state.section_order = [s for s in st.session_state.section_order if s in all_known]
+    return st.session_state.section_order
 
 
 # ========== SIDEBAR: LAYOUT CONTROLS ==========
@@ -49,18 +65,39 @@ with st.sidebar:
                                help="Vertical space between bullet points")
 
     st.divider()
+    st.header("Section Order")
+    st.caption("Use arrows to reorder sections in the PDF")
+    sections = get_all_sections()
+    for i, sec in enumerate(sections):
+        col_name, col_up, col_down = st.columns([4, 1, 1])
+        col_name.write(f"**{i+1}.** {sec}")
+        if i > 0:
+            if col_up.button("↑", key=f"up_{i}"):
+                st.session_state.section_order[i], st.session_state.section_order[i-1] = \
+                    st.session_state.section_order[i-1], st.session_state.section_order[i]
+                st.rerun()
+        if i < len(sections) - 1:
+            if col_down.button("↓", key=f"down_{i}"):
+                st.session_state.section_order[i], st.session_state.section_order[i+1] = \
+                    st.session_state.section_order[i+1], st.session_state.section_order[i]
+                st.rerun()
+
+    st.divider()
     st.header("Custom Sections")
     new_section_name = st.text_input("New section name", placeholder="e.g., Publications, Volunteering")
     if st.button("Add Custom Section"):
         if new_section_name.strip() and new_section_name.strip() not in st.session_state.custom_sections:
             st.session_state.custom_sections.append(new_section_name.strip())
+            st.session_state.section_order.append(new_section_name.strip())
             st.rerun()
 
     for i, sec in enumerate(st.session_state.custom_sections):
         col1, col2 = st.columns([3, 1])
-        col1.write(f"**{sec}**")
-        if col2.button("X", key=f"del_custom_{i}"):
+        col1.write(f"• {sec}")
+        if col2.button("✕", key=f"del_custom_{i}"):
             st.session_state.custom_sections.pop(i)
+            if sec in st.session_state.section_order:
+                st.session_state.section_order.remove(sec)
             st.rerun()
 
 
@@ -212,10 +249,7 @@ for sec_name in st.session_state.custom_sections:
 
 
 # ========== LATEX GENERATION ==========
-def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, location,
-                   edu_entries, exp_entries, proj_entries, skills, awards, certs,
-                   custom_section_data, section_spacing, after_rule_spacing, bullet_spacing):
-    # Build education block
+def build_education_latex(edu_entries):
     edu_block = ""
     for e in edu_entries:
         if not e['inst']:
@@ -227,8 +261,13 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
       {tex_escape(e['degree'])}{gpa_str} & \\\\
     \\end{{tabular*}}\\vspace{{-4pt}}
 """
+    return f"""\\section{{Education}}
+  \\resumeSubHeadingListStart
+{edu_block}  \\resumeSubHeadingListEnd
+"""
 
-    # Build experience block
+
+def build_experience_latex(exp_entries):
     exp_block = ""
     for e in exp_entries:
         if not e['company']:
@@ -254,8 +293,14 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
       \\resumeItemListStart
 {bullets_tex}      \\resumeItemListEnd
 """
+    return f"""\\section{{Experience}}
+  \\resumeSubHeadingListStart
+{exp_block}
+  \\resumeSubHeadingListEnd
+"""
 
-    # Build projects block
+
+def build_projects_latex(proj_entries):
     proj_block = ""
     for p in proj_entries:
         if not p['title']:
@@ -274,16 +319,37 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
           \\resumeItemListStart
 {bullets_tex}          \\resumeItemListEnd
 """
+    return f"""\\section{{Projects}}
+    \\resumeSubHeadingListStart
+{proj_block}    \\resumeSubHeadingListEnd
+"""
 
-    # Build skills
+
+def build_skills_latex(skills):
     skill_items = [s.strip() for s in skills.split(',') if s.strip()]
     skills_tex = " $\\cdot$ ".join([tex_escape(s) for s in skill_items])
+    return f"""\\section{{Skills}}
+ \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
+    \\small{{\\item{{
+     {skills_tex}
+    }}}}
+ \\end{{itemize}}
+"""
 
-    # Build awards
+
+def build_awards_latex(awards):
     award_lines = [a.strip() for a in awards.strip().split('\n') if a.strip()]
     awards_tex = " \\hfill ".join([f"$\\diamondsuit$ {tex_escape(a)}" for a in award_lines])
+    return f"""\\section{{Awards and Achievements}}
+ \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
+    \\small{{\\item{{
+     {awards_tex}
+    }}}}
+ \\end{{itemize}}
+"""
 
-    # Build certifications
+
+def build_certification_latex(certs):
     cert_lines = [c.strip() for c in certs.strip().split('\n') if c.strip()]
     certs_tex = ""
     for c in cert_lines:
@@ -293,30 +359,58 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
         else:
             certs_tex += f"     {tex_escape(c)} \\\\\n"
     certs_tex = certs_tex.rstrip(" \\\\\n")
+    return f"""\\section{{Certification}}
+ \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
+    \\small{{\\item{{
+{certs_tex}
+    }}}}
+ \\end{{itemize}}
+"""
 
-    # Build custom sections
-    custom_blocks = ""
-    for sec_name, content in custom_section_data.items():
-        if not content.strip():
+
+def build_custom_section_latex(sec_name, content):
+    if not content.strip():
+        return ""
+    items_tex = ""
+    for line in content.strip().split('\n'):
+        line = line.strip()
+        if not line:
             continue
-        items_tex = ""
-        for line in content.strip().split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            if ':' in line:
-                parts = line.split(':', 1)
-                title_part = tex_escape(parts[0].strip())
-                desc_part = tex_escape(parts[1].strip())
-                items_tex += f"        \\resumeItem{{{{\\color{{darkgray}}{title_part}:}} {desc_part}}}\n"
-            else:
-                items_tex += f"        \\resumeItem{{{tex_escape(line)}}}\n"
+        if ':' in line:
+            parts = line.split(':', 1)
+            title_part = tex_escape(parts[0].strip())
+            desc_part = tex_escape(parts[1].strip())
+            items_tex += f"        \\resumeItem{{{{\\color{{darkgray}}{title_part}:}} {desc_part}}}\n"
+        else:
+            items_tex += f"        \\resumeItem{{{tex_escape(line)}}}\n"
 
-        custom_blocks += f"""
-\\section{{{tex_escape(sec_name)}}}
+    return f"""\\section{{{tex_escape(sec_name)}}}
   \\resumeItemListStart
 {items_tex}  \\resumeItemListEnd
 """
+
+
+def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, location,
+                   edu_entries, exp_entries, proj_entries, skills, awards, certs,
+                   custom_section_data, section_order, section_spacing, after_rule_spacing, bullet_spacing):
+
+    # Build each section's LaTeX
+    section_builders = {
+        "Education": lambda: build_education_latex(edu_entries),
+        "Experience": lambda: build_experience_latex(exp_entries),
+        "Projects": lambda: build_projects_latex(proj_entries),
+        "Skills": lambda: build_skills_latex(skills),
+        "Awards and Achievements": lambda: build_awards_latex(awards),
+        "Certification": lambda: build_certification_latex(certs),
+    }
+    for sec_name in st.session_state.custom_sections:
+        section_builders[sec_name] = lambda sn=sec_name: build_custom_section_latex(sn, custom_section_data.get(sn, ""))
+
+    # Generate sections in order
+    body_sections = ""
+    for sec in section_order:
+        if sec in section_builders:
+            body_sections += section_builders[sec]() + "\n"
 
     latex = f"""%-------------------------
 % Resume generated by Resume Builder
@@ -407,46 +501,7 @@ def generate_latex(name, subtitle, phone, email, linkedin_url, linkedin_label, l
     }}
 \\end{{center}}
 
-%-----------EDUCATION-----------
-\\section{{Education}}
-  \\resumeSubHeadingListStart
-{edu_block}  \\resumeSubHeadingListEnd
-
-%-----------EXPERIENCE-----------
-\\section{{Experience}}
-  \\resumeSubHeadingListStart
-{exp_block}
-  \\resumeSubHeadingListEnd
-
-%-----------PROJECTS-----------
-\\section{{Projects}}
-    \\resumeSubHeadingListStart
-{proj_block}    \\resumeSubHeadingListEnd
-
-%-----------SKILLS-----------
-\\section{{Skills}}
- \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
-    \\small{{\\item{{
-     {skills_tex}
-    }}}}
- \\end{{itemize}}
-
-%-----------AWARDS-----------
-\\section{{Awards and Achievements}}
- \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
-    \\small{{\\item{{
-     {awards_tex}
-    }}}}
- \\end{{itemize}}
-
-%-----------CERTIFICATIONS-----------
-\\section{{Certification}}
- \\begin{{itemize}}[leftmargin=0.1in, label={{}}]
-    \\small{{\\item{{
-{certs_tex}
-    }}}}
- \\end{{itemize}}
-{custom_blocks}
+{body_sections}
 %-------------------------------------------
 \\end{{document}}
 """
@@ -483,7 +538,7 @@ if st.button("Generate Resume", type="primary", use_container_width=True):
     latex_code = generate_latex(
         name, subtitle, phone, email, linkedin_url, linkedin_label, location,
         edu_entries, exp_entries, proj_entries, skills, awards, certs,
-        custom_section_data, section_spacing, after_rule_spacing, bullet_spacing
+        custom_section_data, get_all_sections(), section_spacing, after_rule_spacing, bullet_spacing
     )
 
     tab1, tab2 = st.tabs(["PDF Preview", "LaTeX Code"])
