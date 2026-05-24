@@ -68,19 +68,23 @@ with st.sidebar:
     st.header("Section Order")
     st.caption("Use arrows to reorder sections in the PDF")
     sections = get_all_sections()
+
+    # Use callbacks to avoid key conflicts on rerun
+    def move_up(idx):
+        order = st.session_state.section_order
+        order[idx], order[idx-1] = order[idx-1], order[idx]
+
+    def move_down(idx):
+        order = st.session_state.section_order
+        order[idx], order[idx+1] = order[idx+1], order[idx]
+
     for i, sec in enumerate(sections):
         col_name, col_up, col_down = st.columns([4, 1, 1])
         col_name.write(f"**{i+1}.** {sec}")
         if i > 0:
-            if col_up.button("↑", key=f"up_{i}"):
-                st.session_state.section_order[i], st.session_state.section_order[i-1] = \
-                    st.session_state.section_order[i-1], st.session_state.section_order[i]
-                st.rerun()
+            col_up.button("↑", key=f"up_{sec}", on_click=move_up, args=(i,))
         if i < len(sections) - 1:
-            if col_down.button("↓", key=f"down_{i}"):
-                st.session_state.section_order[i], st.session_state.section_order[i+1] = \
-                    st.session_state.section_order[i+1], st.session_state.section_order[i]
-                st.rerun()
+            col_down.button("↓", key=f"down_{sec}", on_click=move_down, args=(i,))
 
     st.divider()
     st.header("Custom Sections")
